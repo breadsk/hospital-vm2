@@ -97,22 +97,62 @@ public class PacienteController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Paciente> update(@PathVariable int id,@RequestBody Paciente paciente){
-        try{
+    public ResponseEntity<?> update(
+            @PathVariable int id,
+            @Valid @RequestBody Paciente pacienteActualizado,
+            BindingResult bindingResult) {
+    
+        try {
+            // 1. Validar los datos de entrada
+            if (bindingResult.hasErrors()) {
+                Map<String, String> errores = new HashMap<>();
+                bindingResult.getFieldErrors().forEach(error -> 
+                    errores.put(error.getField(), error.getDefaultMessage()));
+                return ResponseEntity.badRequest().body(errores);
+            }
 
-            Paciente pac = pacienteService.getPacientePorId2(id);
-            pac.setId(id);
-            pac.setRut(paciente.getRut());
-            pac.setNombres(paciente.getNombres());
-            pac.setApellidos(paciente.getApellidos());
-            pac.setFechaNacimiento(paciente.getFechaNacimiento());
-            pac.setCorreo(paciente.getCorreo());
+            // 2. Verificar si el paciente existe
+            Paciente pacienteExistente = pacienteService.getPacientePorId2(id);
+            if (pacienteExistente == null) {
+                return ResponseEntity.notFound().build();
+            }
 
-            pacienteService.save(paciente);
-            return ResponseEntity.ok(paciente);
+            // 3. Validación estricta del RUT
+            if (pacienteActualizado.getRut() != null) {
+                // Caso 1: Se intenta cambiar el RUT
+                if (!pacienteActualizado.getRut().equals(pacienteExistente.getRut())) {
+                    // Verificar si el nuevo RUT ya existe en OTRO paciente (excluyendo el actual)
+                    if (pacienteService.existePacienteConRut(pacienteActualizado.getRut(), id)) {
+                        Map<String, String> error = new HashMap<>();
+                        error.put("message", "El RUT ya está registrado por otro paciente");
+                        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+                    }
+                    // Si no existe, igual no permitimos cambiar el RUT (campo inmutable)
+                    Map<String, String> error = new HashMap<>();
+                    error.put("message", "El RUT no puede ser modificado");
+                    return ResponseEntity.badRequest().body(error);
+                }
+                // Caso 2: RUT no ha cambiado (es el mismo), no hacemos nada
+            }
 
-        }catch(Exception ex){
-            return ResponseEntity.notFound().build();
+            // 4. Actualizar solo campos permitidos
+            pacienteExistente.setNombres(pacienteActualizado.getNombres());
+            pacienteExistente.setApellidos(pacienteActualizado.getApellidos());
+            pacienteExistente.setFechaNacimiento(pacienteActualizado.getFechaNacimiento());
+            pacienteExistente.setCorreo(pacienteActualizado.getCorreo());
+            
+            // 5. Guardar cambios
+            Paciente pacienteGuardado = pacienteService.save(pacienteExistente);
+            return ResponseEntity.ok(pacienteGuardado);
+
+        } catch (DataIntegrityViolationException e) {
+            // Manejar conflictos de unicidad (email)
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "El correo electrónico ya está registrado");
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+            
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
         }
     }
 
