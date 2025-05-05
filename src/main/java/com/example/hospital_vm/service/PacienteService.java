@@ -25,6 +25,10 @@ public class PacienteService {
         return pacienteRepository.findById(id);
     }
 
+    public Paciente getPacientePorId2(int id){
+        return pacienteRepository.findById(id).get();
+    }
+
     public Paciente save(Paciente paciente){
         return pacienteRepository.save(paciente);
     }

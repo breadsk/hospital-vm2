@@ -1,6 +1,7 @@
 package com.example.hospital_vm.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 import lombok.Data;
@@ -22,8 +23,10 @@ public class Paciente {
     private String rut;
 
     @Column(nullable = false)
+    @NotBlank(message = "Los nombres son obligatorios")
     private String nombres;
 
+    @NotBlank(message = "Los apellidos son obligatorios")
     @Column(nullable = false)
     private String apellidos;
 
@@ -31,6 +34,8 @@ public class Paciente {
     private Date fechaNacimiento;
 
     @Column(nullable = false)
+    @NotBlank(message = "El correo debe ser obligatorio")
+    @Email(message = "Correo no válido, debe teener @")
     private String correo;
 
 }

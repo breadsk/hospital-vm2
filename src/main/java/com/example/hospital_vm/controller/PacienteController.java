@@ -3,11 +3,14 @@ package com.example.hospital_vm.controller;
 import com.example.hospital_vm.model.Paciente;
 import com.example.hospital_vm.service.PacienteService;
 
+import jakarta.validation.Valid;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,6 +25,7 @@ import java.util.Optional;
 import java.net.URI;
 import java.time.LocalDateTime;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 
@@ -54,28 +58,61 @@ public class PacienteController {
     }
 
     @PostMapping
-    public ResponseEntity<?> save(@RequestBody Paciente paciente){
-        try{
+    public ResponseEntity<?> save(@Valid @RequestBody Paciente paciente, BindingResult bindingResult) {
+        try {
+            // Verificar si hay errores de validación antes de procesar
+            if (bindingResult.hasErrors()) {
+                Map<String, String> errores = new HashMap<>();
+                for (FieldError error : bindingResult.getFieldErrors()) {
+                    errores.put(error.getField(), error.getDefaultMessage());
+                }
+                return ResponseEntity.badRequest().body(errores);
+            }
 
             Paciente pacienteGuardado = pacienteService.save(paciente);
-            //
-
-            //Uri del nuevo recurso creado 
+            
             URI location = ServletUriComponentsBuilder
-                        .fromCurrentRequest()
-                        .path("/{id}")
-                        .buildAndExpand(pacienteGuardado.getId())
-                        .toUri();
+                    .fromCurrentRequest()
+                    .path("/{id}")
+                    .buildAndExpand(pacienteGuardado.getId())
+                    .toUri();
 
             return ResponseEntity
-                        .created(location)//Código 201 created
-                        .body(pacienteGuardado);
-                        
+                    .created(location)
+                    .body(pacienteGuardado);
 
-        }catch(DataIntegrityViolationException e){
-            Map<String,String> error = new HashMap<>();
-            error.put("message","El email ya está registrado");
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(error);//404
+        } catch (DataIntegrityViolationException e) {
+            Map<String, String> error = new HashMap<>();
+            
+            if (e.getMessage() != null && e.getMessage().contains("rut")) {
+                error.put("message", "El RUT ya está registrado");
+            } else {
+                error.put("message", "El correo electrónico ya está registrado");
+            }
+            
+            return ResponseEntity
+                    .status(HttpStatus.CONFLICT)
+                    .body(error);
+        }
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Paciente> update(@PathVariable int id,@RequestBody Paciente paciente){
+        try{
+
+            Paciente pac = pacienteService.getPacientePorId2(id);
+            pac.setId(id);
+            pac.setRut(paciente.getRut());
+            pac.setNombres(paciente.getNombres());
+            pac.setApellidos(paciente.getApellidos());
+            pac.setFechaNacimiento(paciente.getFechaNacimiento());
+            pac.setCorreo(paciente.getCorreo());
+
+            pacienteService.save(paciente);
+            return ResponseEntity.ok(paciente);
+
+        }catch(Exception ex){
+            return ResponseEntity.notFound().build();
         }
     }
 
